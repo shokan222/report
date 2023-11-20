@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <title>課題研究がんばろう</title>
+</head>
+<body>
+    <button onClick="deviceRequest()">Click</button>
+    
+
+    <div id="gps"></div> 
+    <div id="x"></div>
+    <div id="y"></div>
+    <div id="z"></div>
+    <div id="alpha"></div>
+    <div id="beta"></div>
+    <div id="gamma"></div>
+    <div id="IIR"></div>
+    <div id="curve">曲がり判定</div>
+    
+
+    <script>
+            var x = 0;
+            var y = 0;
+            var z = 0;
+            let alpha = 0;
+            let beta = 0;
+            let gamma = 0;
+            let result = 0;
+            let A = 0;
+            
+            function deviceRequest () {
+                deviceOrientationRequest();
+                deviceMotionRequest();
+                gpsget();
+                timer();
+                judgingCurve();
+            }
+            
+            function getAccel () {
+                window.addEventListener("devicemotion", function (event) {
+                    x = event.accelerationIncludingGravity.x;    // x軸の重力加速度（Android と iOSでは正負が逆）
+                    y = event.accelerationIncludingGravity.y;    // y軸の重力加速度（Android と iOSでは正負が逆）
+                    z = event.accelerationIncludingGravity.z;    // z軸の重力加速度（Android と iOSでは正負が逆）
+                });
+            }
+
+            function timer () {
+                window.setInterval(() => {
+                    displayAccel();
+                    displayGyro();      // displayData 関数を実行
+                }, 33);
+            }
+            
+            function displayAccel() {
+                document.getElementById('x').innerHTML = (`x:${x}`);
+                document.getElementById('y').innerHTML = (`y:${y}`);
+                document.getElementById('z').innerHTML = (`z:${z}`);
+            }
+
+            function iirlpf(input, reset) {
+                let d1 = 0;
+                let d2 = 0;
+                const k = 0.01; // 0 < k < 1
+                if (!reset) {
+                    const t = d1;
+                    d1 = d2;
+                    d2 = (1 - k) * (d2 - input) + k * t;
+                    return d2;
+                } else {
+                    d1 = 0;
+                    d2 = 0;
+                    return 0;
+                    }
+            }
+
+            function getGyro () {
+                window.addEventListener('devicemotion', function(event) {
+                    alpha = event.rotationRate.alpha*(Math.PI/180); // Z軸周りの角速度
+                    beta = event.rotationRate.beta*(Math.PI/180);  // X軸周りの角速度
+                    gamma = event.rotationRate.gamma*(Math.PI/180); // Y軸周りの角速度
+                    result = Math.abs(iirlpf(gamma, 0));
+                    judgingCurve();
+                });         
+            };
+
+            function displayGyro() {            
+                document.getElementById('alpha').innerHTML = (`alpha;(rad/s):${alpha}`);
+                document.getElementById('beta').innerHTML = (`beta:(rad/s):${beta}`);
+                document.getElementById('gamma').innerHTML = (`gamma:(rad/s):${gamma}`);
+                document.getElementById('IIR').innerHTML = (`IIRフィルター適用後:${result}`);
+                
+            }
+                        
+            function judgingCurve(){    
+                if(A==0){
+                    if(result>=0.3){
+                        setTimeout(function(){if(result>=0.3){A=2}},1000)
+                    }
+                }else if(result<0.3){
+                    A=0;
+                }
+
+                if(A==0){
+                    document.getElementById('curve').innerHTML = (`曲がり判定:直進`);
+                }else{
+                    document.getElementById('curve').innerHTML = (`曲がり判定:曲がり`);
+                }
+                
+            }
+            
+            function deviceMotionRequest () {
+                if (DeviceMotionEvent.requestPermission) {
+                DeviceMotionEvent.requestPermission()
+                    .then(permissionState => {
+                    if (permissionState === 'granted') {
+                        getAccel();
+                    }
+                    })
+                    .catch(console.error);
+                } else {
+                alert('DeviceMotionEvent.requestPermission is not found')
+                }
+            }    
+
+            function deviceOrientationRequest () {
+                if (DeviceOrientationEvent.requestPermission) {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                    if (permissionState === 'granted') {
+                        getGyro();
+                        
+                    }
+                    })
+                    .catch(console.error);
+                } else {
+                alert('DeviceOrientationEvent.requestPermission is not found')
+                }
+            }
+    
+            function gpsget(){
+                    navigator.geolocation.watchPosition( (position) => {
+                    var lat  = position.coords.latitude;            // 緯度を取得
+                    var lng  = position.coords.longitude;           // 経度を取得
+                    var alt  = position.coords.altitude;
+                    var accu = position.coords.accuracy;            // 緯度・経度の精度を取得
+                    displayGps(lat, lng, alt, accu);                    // displayData 関数を実行
+                }, (error) => {                                     // エラー処理（今回は特に何もしない）
+                }, {
+                    enableHighAccuracy: true                        // 高精度で測定するオプション
+                });
+            }    
+            
+            function displayGps(lat, lng, alt, accu) {
+                var txt = document.getElementById("gps");       // データを表示するdiv要素の取得
+                gps.innerHTML = "緯度: "+ lat + "<br>"+"経度: "+ lng + "<br>"+  // データ表示
+                                "高度: "+ alt + "<br>"+ "精度: "+ accu;
+            }    
+
+    </script>
+</body>
+</html>
